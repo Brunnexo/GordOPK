@@ -1,0 +1,10 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="GordOPK.vcxproj" Id="6cb9ada9-8a3e-4275-8520-e857839c731c">
+    <Platform Project="Win32" />
+  </Project>
+</Solution>
