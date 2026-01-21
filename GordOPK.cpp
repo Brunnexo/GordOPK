@@ -10,6 +10,11 @@
 // #########################################################################################################
 // Os verdadeiros créditos são os amigos que fazemos no caminho
 
+// A fazer:
+// - Tutorial de como obter ponteiros + básico de engenharia reversa
+// - Tópico completo da DLL no Discord
+// - Documentação do código
+
 #pragma once
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -24,20 +29,21 @@
 #include <iostream>
 #include <ws2tcpip.h>
 #include <unordered_map>
-#include <fstream> // Adicione este include no topo do arquivo
+#include <fstream>
 #include <sstream>
+#include <shellapi.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 
 // ######################################
-// ##        DEFINIÇÕES GLOBAIS        ##
+// ##   +   DEFINIÇÕES GLOBAIS   +     ##
 // ######################################
 
 // Aqui você vai definir os ponteiros e 
 // variáveis globais que serão usadas na DLL
 
-// Lembre-se, os endereços começam com o 0x!!
-//                                  \/
+// Lembre-se: valores hexadecimais
+// começam com 0x!!                 \/
 #define T_ADDRESS_PTR               0x14EFBD8
 #define DOMAIN_ADDRESS_PTR          0x11764B0
 
@@ -45,16 +51,7 @@
 #define SEED_FUN_ADDRESS            0x51A490
 #define CRAG_CONNECTION_PTR         0xBE8760
 
-// Isso aqui não é endereço, então não use 0x
-#define SOCKET_PORT				    2349
-#define KORE_PORT				    6902
-// Sabe aquele endereço IP que você define no
-// adaptador de rede? Coloque ele aqui! ENTRE ASPAS!!
-#define KORE_IP                     "172.65.175.70"
-
-// Se quiser tirar o console, basta tirar essa linha abaixo
-#define CONSOLE
-
+#define CONSOLE // Se quiser tirar o console, basta tirar ou comentar essa linha
 
 // Basicamente, não precisa mudar nada no
 // código, apenas os parâmetros acima.
@@ -64,11 +61,33 @@
 // Dúvidas? https://discord.gg/HyJjHK5zB2
 
 // ######################################
-// ##              FIM!                ##
+// ##   -   DEFINIÇÕES GLOBAIS   -     ##
+// ######################################
+
+
+// ######################################
+// ##    +   VALORES OPCIONAIS   +     ##
+// ######################################
+
+// Não precisa alterar os valores abaixo
+// se você quiser utilizar argumentos de
+// execução para sobrescrevê-los.
+// Exemplo: ragexe.exe 1rag1 -no-hook -ip 172.65.175.70 -korePort 6902 -socketPort 2349
+
+#define SOCKET_PORT				    2349            // -socketPort <porta>
+#define KORE_PORT				    6901            // -korePort <porta>
+#define KORE_IP                     "172.65.175.70" // -ip <endereço sem aspas>
+
+// ######################################
+// ##    -   VALORES OPCIONAIS   -     ##
 // ######################################
 
 
 // Tipagem - frescura de programador
+// Um QWORD ocupa 8 bytes na memória, ou 64 bits
+// É o equivalente a isso:
+// 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+// O valor máximo inteiro é de 18.446.744.073.709.551.615 - por isso a RAM tá cara!
 typedef unsigned long long QWORD;
 
 
@@ -90,7 +109,8 @@ SOCKET CreateSocketServer(int port, const std::string& ip);
 QWORD CalculateChecksum(char* buffer, int len, DWORD counter, QWORD seed);
 QWORD GetSeed(char* buffer, int len);
 void AllocateConsole();
-
+std::vector<std::wstring> LerArgs();
+void GravarArgs();
 
 // Funções de hooking
 DWORD WINAPI AddressOverrideThread(LPVOID lpParam);
@@ -99,8 +119,16 @@ DWORD WINAPI ChecksumSocketThread(LPVOID lpParam);
 // Variáveis
 bool isTaAddressOverwrited = false;
 bool isDomainOverwrited = false;
+
 QWORD newSeed;
+
 bool keepMainThread = true;
+
+bool noHook = false;
+std::string staticIP = KORE_IP;
+
+int korePort = KORE_PORT;
+int socketPort = SOCKET_PORT;
 
 // Adivinha o que essa função faz?
 ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
@@ -132,11 +160,8 @@ ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
         if (!counter) {
             char rand_byte = (char)rand();
             result = rand_byte;
-
             buffer[dataLen] = rand_byte;
-
             newSeed = GetSeed(buffer, dataLen + 1);
-
             response.currentSeed = newSeed;
         }
         else {
@@ -152,12 +177,15 @@ ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
 }
 
 // Threads
-
-// A bendita thread do checksum
+// A bendita thread do checksum!!
 static DWORD WINAPI ChecksumSocketThread(LPVOID lpParam) {
-    const SOCKET serverSocket = CreateSocketServer(SOCKET_PORT, KORE_IP);
+    // Aloca buffer no heap para evitar uso excessivo da pilha
+    char* buffer = new char[BUF_SIZE];
+
+    const SOCKET serverSocket = CreateSocketServer(socketPort, staticIP);
 
     if (serverSocket == INVALID_SOCKET) {
+        delete[] buffer;
         return EXIT_FAILURE;
     }
 
@@ -167,7 +195,6 @@ static DWORD WINAPI ChecksumSocketThread(LPVOID lpParam) {
 
         const SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrLen);
         if (clientSocket != INVALID_SOCKET) {
-            char buffer[BUF_SIZE];
             int bytesReceived;
 
             while ((bytesReceived = recv(clientSocket, buffer, BUF_SIZE, 0)) > 0) {
@@ -186,12 +213,13 @@ static DWORD WINAPI ChecksumSocketThread(LPVOID lpParam) {
     }
 
     closesocket(serverSocket);
+    delete[] buffer;
     // WSACleanup();
     return EXIT_SUCCESS;
 }
 
-// Substitui o endereço do servidor de autenticação e o domínio
-// Lembra do Ghost.py? Faz a mesma coisa só que internamente!
+// Substitui o endereço do servidor de autenticação e o servidor de domínio
+// Lembra do Ghost.py? Faz a mesma coisa, só que internamente!
 static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
     const int len = 33;
 
@@ -201,8 +229,7 @@ static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
     char value[len] = { 0 };
 
     std::ostringstream oss;
-    oss << KORE_IP << ":" << KORE_PORT;
-
+    oss << staticIP << ":" << korePort;
     std::string ipPortStr = oss.str();
 
     strncpy_s(value, ipPortStr.c_str(), min(size_t(32), ipPortStr.size()));
@@ -229,32 +256,40 @@ static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
             if (isTaAddressOverwrited && isDomainOverwrited) {
                 break;
             }
-        } catch (std::exception&) {
-			// Se chegou aqui, deu erro!
-			// É uma DLL básica! Se quiser implementar algum log, fique à vontade!!
+        } catch (std::exception& e) {
+            std::cout << "[DLL] Addr. override ERRO: " << e.what() << std::endl;
             break;
         }
 
         Sleep(100);
     }
 
-
     std::cout << "[DLL] Addr. override OK!" << std::endl;
     return EXIT_SUCCESS;
 }
 
+// Funções essenciais originais do jogo
+
+// Calcula o checksum: obtém o pacote de envio e
+// concatena com uma resultante ordenada de uma seed gerada
+// aleatoriamente
 static QWORD CalculateChecksum(char* buffer, int len, DWORD counter, QWORD seed) {
     static CalculateChecksumFunction fun = reinterpret_cast<CalculateChecksumFunction>(CHECKSUM_FUN_ADDRESS);
     return fun(buffer, len, counter, seed);
 }
 
+// Gera a seed inicial para o cálculo do checksum
+// Se já jogou Minecraft, sabe o que é seed... mas se não jogou:
+// Imagine que seed é um número aleatório inicial que serve como base
+// de cálculo de uma fórmula que, a partir de certos parâmetros, gera
+// uma resultante previsível e controlável pelo servidor
 static QWORD GetSeed(char* buffer, int len) {
     static GetSeedFunction fun = reinterpret_cast<GetSeedFunction>(SEED_FUN_ADDRESS);
-
     return fun(buffer, len);
 }
 
 // Cria um server socket simples
+// É o ponto de encontro entre o OpenKore e o jogo!
 // O que é socket? https://pt.wikipedia.org/wiki/Soquete_de_rede
 SOCKET CreateSocketServer(int port, const std::string& ip) {
     sockaddr_in addr;
@@ -262,8 +297,9 @@ SOCKET CreateSocketServer(int port, const std::string& ip) {
 
     SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (sock == INVALID_SOCKET)
+    if (sock == INVALID_SOCKET) {
         return INVALID_SOCKET;
+    }
 
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
 
@@ -272,8 +308,7 @@ SOCKET CreateSocketServer(int port, const std::string& ip) {
 
     if (ip.empty()) {
         addr.sin_addr.s_addr = INADDR_ANY;
-    }
-    else {
+    } else {
         addr.sin_addr.s_addr = inet_addr(ip.c_str());
     }
 
@@ -286,9 +321,13 @@ SOCKET CreateSocketServer(int port, const std::string& ip) {
         closesocket(sock);
         return INVALID_SOCKET;
     }
+
     return sock;
 }
 
+// Função que aloca o console
+// Tela preta chata, só serve para avaliar se o programa
+// está rodando corretamente...
 static void AllocateConsole() {
     AllocConsole();
     freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
@@ -296,10 +335,61 @@ static void AllocateConsole() {
     freopen_s((FILE**)stdin, "CONIN$", "r", stdin);
 #ifdef UNICODE
     SetConsoleOutputCP(CP_UTF8);
-    SetConsoleTitle(L"Gordolog");
+    SetConsoleTitle(L"Console");
 #else
     SetConsoleTitle("Console");
 #endif
+}
+
+// Essa função LÊ os argumentos de execução do processo
+static std::vector<std::wstring> LerArgs() {
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+    std::vector<std::wstring> args;
+    if (argv) {
+        for (int i = 0; i < argc; i++) {
+            args.emplace_back(argv[i]);
+        }
+        LocalFree(argv);
+    }
+    return args;
+}
+
+// Essa funçao GRAVA os argumentos de execução, lembra delas?
+static void GravarArgs() {
+    const static std::vector<std::wstring> args = LerArgs();
+
+    auto hasNext = [&](int i) -> bool {
+        return (i + 1 < args.size());
+        };
+
+    for (int i = 0; i < args.size(); i++) {
+        const std::wstring& arg = args[i];
+
+        if (arg == L"sem-lisinho" || arg == L"-no-hook" || arg == L"-nh") {
+            noHook = true;
+            continue;
+        }
+
+        if (arg == L"-ip") {
+            if (hasNext(i)) {
+                const auto& ip = args[i + 1];
+                staticIP = std::string(ip.begin(), ip.end());
+            }
+            continue;
+        }
+
+        if (arg == L"-korePort" || arg == L"-kp") {
+            if (hasNext(i)) korePort = std::stoi(args[i + 1]);
+            continue;
+        }
+
+        if (arg == L"-socketPort" || arg == L"-sp") {
+            if (hasNext(i)) socketPort = std::stoi(args[i + 1]);
+            continue;
+        }
+    }
 }
 
 
@@ -308,9 +398,12 @@ static void Main() {
 #ifdef CONSOLE
 	AllocateConsole();
 #endif
+	GravarArgs();
 
-    CreateThread(NULL, 0, AddressOverrideThread, NULL, 0, NULL);
-    CreateThread(NULL, 0, ChecksumSocketThread, NULL, 0, NULL);
+    if (!noHook) {
+        CreateThread(NULL, 0, AddressOverrideThread, NULL, 0, NULL);
+        CreateThread(NULL, 0, ChecksumSocketThread, NULL, 0, NULL);
+    }
 }
 
 // A DLL começa aqui, não há necessidade de modificar
