@@ -31,6 +31,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
+COLOR 20
 echo.
 echo [OK] Scanner executado com sucesso.
 pause

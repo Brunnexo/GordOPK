@@ -1,19 +1,5 @@
-﻿// #########################################################################################################
-// #########################################################################################################
-// ####       ___              _   /\/           ___                                                    ####
-// ####      / _ \___  _ __ __| | __ _  ___     / _ \_ __ ___   __ _ _ __ __ _ _ __ ___   __ _ ___      ####
-// ####     / /_\/ _ \| '__/ _` |/ _` |/ _ \   / /_)/ '__/ _ \ / _` | '__/ _` | '_ ` _ \ / _` / __|     ####
-// ####    / /_\\ (_) | | | (_| | (_| | (_) | / ___/| | | (_) | (_| | | | (_| | | | | | | (_| \__ \     ####
-// ####    \____/\___/|_|  \__,_|\__,_|\___/  \/    |_|  \___/ \__, |_|  \__,_|_| |_| |_|\__,_|___/     ####
-// ####                                                   |___/                                         ####
-// #########################################################################################################
-// #########################################################################################################
-// Os verdadeiros créditos são os amigos que fazemos no caminho
-
-// A fazer:
-// - Tutorial de como obter ponteiros + básico de engenharia reversa
-// - Tópico completo da DLL no Discord
-// - Documentação do código
+// Salve este arquivo com o encoding UTF-8 sem BOM
+// No VS Code é apenas UTF-8
 
 #pragma once
 
@@ -31,6 +17,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <shellapi.h>
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -42,22 +29,27 @@
 // Aqui você vai definir os ponteiros e 
 // variáveis globais que serão usadas na DLL
 
-// Lembre-se: valores hexadecimais
-// começam com 0x!!                 \/
-#define T_ADDRESS_PTR               0x14EFBD8
-#define DOMAIN_ADDRESS_PTR          0x11764B0
+// ÁREA DOS PONTEIROS: SUBSTITUA OS SEUS PONTEIROS AQUI
+// ####################################################
+#define CRAG_CONNECTION_PTR     0x00BE8760
+#define CHECKSUM_FUN_ADDRESS    0x0051A2B0
+#define SEED_FUN_ADDRESS        0x0051A490
+#define DOMAIN_ADDRESS_PTR      0x011764B0
+#define T_ADDRESS_PTR           0x014EFBD8
+// ####################################################
 
-#define CHECKSUM_FUN_ADDRESS        0x51A2B0
-#define SEED_FUN_ADDRESS            0x51A490
-#define CRAG_CONNECTION_PTR         0xBE8760
+// Se quiser tirar o console, basta tirar
+// ou comentar essa linha abaixo!
 
-#define CONSOLE // Se quiser tirar o console, basta tirar ou comentar essa linha
+// O bom de deixar o console habilitado é
+// poder ver como o checksum é calculado
+#define CONSOLE
 
-// Basicamente, não precisa mudar nada no
+// Basicamente não precisa mudar nada no
 // código, apenas os parâmetros acima.
 
 // Curioso para entender como funciona?
-// Fique a vontade para estudar!!
+// Fique à vontade para estudar!!
 // Dúvidas? https://discord.gg/HyJjHK5zB2
 
 // ######################################
@@ -81,6 +73,27 @@
 // ######################################
 // ##    -   VALORES OPCIONAIS   -     ##
 // ######################################
+
+// Função que exibe o splash na inicialização
+// É uma ASCII art simples, nada demais! <3
+static void Splash() {
+    std::cout << 
+    R"(
+    #########################################################################################################
+    #########################################################################################################
+    ####       ___              _   /\/           ___                                                    ####
+    ####      / _ \___  _ __ __| | __ _  ___     / _ \_ __ ___   __ _ _ __ __ _ _ __ ___   __ _ ___      ####
+    ####     / /_\/ _ \| '__/ _` |/ _` |/ _ \   / /_)/ '__/ _ \ / _` | '__/ _` | '_ ` _ \ / _` / __|     ####
+    ####    / /_\\ (_) | | | (_| | (_| | (_) | / ___/| | | (_) | (_| | | | (_| | | | | | | (_| \__ \     ####
+    ####    \____/\___/|_|  \__,_|\__,_|\___/  \/    |_|  \___/ \__, |_|  \__,_|_| |_| |_|\__,_|___/     ####
+    ####                                                   |___/                                         ####
+    #########################################################################################################
+    #########################################################################################################
+                         Os verdadeiros créditos são os amigos que fazemos no caminho
+    )"
+    << std::endl;
+}
+
 
 
 // Tipagem - frescura de programador
@@ -125,10 +138,29 @@ QWORD newSeed;
 bool keepMainThread = true;
 
 bool noHook = false;
-std::string staticIP = KORE_IP;
 
+// Caso você "acidentalmente" tenha apagado
+// os defines ali em cima, o pré-processador
+// cuida de definir valores padrões aqui
+// MAB - metodologia anti-burro
+#ifdef KORE_IP
+std::string staticIP = KORE_IP;
+#else
+std::string staticIP = "172.65.175.70";
+#endif
+
+#ifdef KORE_PORT
 int korePort = KORE_PORT;
+#else
+int korePort = 6901;
+#endif
+
+#ifdef SOCKET_PORT
 int socketPort = SOCKET_PORT;
+#else
+int socketPort = 2349;
+#endif
+
 
 // Adivinha o que essa função faz?
 ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
@@ -163,11 +195,16 @@ ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
             buffer[dataLen] = rand_byte;
             newSeed = GetSeed(buffer, dataLen + 1);
             response.currentSeed = newSeed;
-        }
-        else {
+        } else {
             result = CalculateChecksum(buffer, dataLen, counter, newSeed);
             response.currentSeed = newSeed;
         }
+        
+        std::cout
+            << "COUNTER = " << std::setw(5) << counter
+            << " || RESULT = " << std::setw(5) << std::right << (int)result
+            << " || SEED = " << newSeed
+            << std::endl;
 
         response.checksum = result;
         response.counter = counter;
@@ -178,6 +215,14 @@ ChecksumResponse ProcessChecksumPacket(char* buffer, int len) {
 
 // Threads
 // A bendita thread do checksum!!
+
+// Mas por que duas funções de checksum?
+// Thread é uma coisa e função é outra!
+// A thread fica executando como um motor
+// à combustão: sempre girando, mesmo parado.
+// A função é chamada quando necessário, assim
+// como um acelerador: só funciona quando você pisa nela!
+// Quem pisa nesse acelerador é o OpenKore!
 static DWORD WINAPI ChecksumSocketThread(LPVOID lpParam) {
     // Aloca buffer no heap para evitar uso excessivo da pilha
     char* buffer = new char[BUF_SIZE];
@@ -234,7 +279,7 @@ static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
 
     strncpy_s(value, ipPortStr.c_str(), min(size_t(32), ipPortStr.size()));
 
-	std::cout << "[DLL] Overriding TA addr. and domain to: " << value << "..." << std::endl;
+	std::cout << "[DLL] Substituindo endereços de conexão para: " << value << "..." << std::endl;
 
     while (!(isTaAddressOverwrited || isDomainOverwrited)) {
         try {
@@ -243,6 +288,7 @@ static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
             if (!isTaAddressOverwrited && strcmp(taAddr, originalTaAddr) == 0) {
                 memcpy(taAddr, value, len);
                 isTaAddressOverwrited = true;
+                std::cout << "[DLL] Endereço de autenticação sobrescrito com sucesso!" << std::endl;
             }
 
             uintptr_t domainStrAddr = *(uintptr_t*)DOMAIN_ADDRESS_PTR;
@@ -251,20 +297,21 @@ static DWORD WINAPI AddressOverrideThread(LPVOID lpParam) {
             if (!isDomainOverwrited && strcmp(domain, originalDomain) == 0) {
                 memcpy(domain, value, len);
                 isDomainOverwrited = true;
+                std::cout << "[DLL] Endereço de domínio sobrescrito com sucesso!" << std::endl;
             }
 
             if (isTaAddressOverwrited && isDomainOverwrited) {
                 break;
             }
         } catch (std::exception& e) {
-            std::cout << "[DLL] Addr. override ERRO: " << e.what() << std::endl;
+            std::cout << "[DLL] Erro na substituição de endereços: " << e.what() << std::endl;
             break;
         }
 
         Sleep(100);
     }
 
-    std::cout << "[DLL] Addr. override OK!" << std::endl;
+    std::cout << "[DLL] Substituição de endereços concluída!" << std::endl;
     return EXIT_SUCCESS;
 }
 
@@ -322,12 +369,11 @@ SOCKET CreateSocketServer(int port, const std::string& ip) {
         return INVALID_SOCKET;
     }
 
+    std::cout << "[DLL] Servidor de checksum iniciado na porta " << port << "!" << std::endl;
     return sock;
 }
 
 // Função que aloca o console
-// Tela preta chata, só serve para avaliar se o programa
-// está rodando corretamente...
 static void AllocateConsole() {
     AllocConsole();
     freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
@@ -356,47 +402,51 @@ static std::vector<std::wstring> LerArgs() {
     return args;
 }
 
-// Essa funçao GRAVA os argumentos de execução, lembra delas?
+// Essa funçao GRAVA os argumentos de execução em memória
 static void GravarArgs() {
     const static std::vector<std::wstring> args = LerArgs();
 
     auto hasNext = [&](int i) -> bool {
         return (i + 1 < args.size());
-        };
+    };
 
     for (int i = 0; i < args.size(); i++) {
         const std::wstring& arg = args[i];
 
         if (arg == L"sem-lisinho" || arg == L"-no-hook" || arg == L"-nh") {
             noHook = true;
-            continue;
+            std::wcout << "[DLL] [" << arg << "] Modo sem hook ativado!" << std::endl;
+            return;
         }
 
         if (arg == L"-ip") {
             if (hasNext(i)) {
                 const auto& ip = args[i + 1];
                 staticIP = std::string(ip.begin(), ip.end());
+                std::wcout << "[DLL] [" << arg << "] IP estático definido para: " << ip << std::endl;
             }
             continue;
         }
 
         if (arg == L"-korePort" || arg == L"-kp") {
             if (hasNext(i)) korePort = std::stoi(args[i + 1]);
+            std::wcout << "[DLL] [" << arg << "] Porta do KoreProxy definida para: " << korePort << std::endl;
             continue;
         }
 
         if (arg == L"-socketPort" || arg == L"-sp") {
             if (hasNext(i)) socketPort = std::stoi(args[i + 1]);
+            std::wcout << "[DLL] [" << arg << "] Porta do servidor checksum definida para: " << socketPort << std::endl;
             continue;
         }
     }
 }
 
-
 // Essa função é chamada quando a DLL é carregada no jogo
 static void Main() {
 #ifdef CONSOLE
 	AllocateConsole();
+    Splash();
 #endif
 	GravarArgs();
 

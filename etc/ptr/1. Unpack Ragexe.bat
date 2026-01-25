@@ -71,6 +71,7 @@ if not exist "%SCRIPT_DIR%\unpacked_%TARGET_EXE%" (
     exit /b 1
 )
 
+COLOR 20
 ECHO.
 ECHO ==========================================
 ECHO  Processo finalizado

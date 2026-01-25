@@ -8,13 +8,13 @@ Você só precisa garantir que os ponteiros estejam de acordo com a versão do `
 
 **Acesse o [Discord da comunidade!](https://discord.gg/HyJjHK5zB2)**
 
-## Requisitos
-- Visual Studio 2017 ou mais recente
-	- Compilador MSVC com suporte ao C++23 e x86 (Win32)
-- Python 3.11 (opcional, apenas para uso de ferramentas)
+## Dependências
+Todas as dependências necessárias estarão na pasta [`etc/deps`](etc/deps).
+Use os scripts para instalar o **necessário** para compilar e executar as ferramentas.
 
 ## Compilando
-- Execute o `build.bat`: será gerado o `GordOPK.asi` na mesma pasta
+- Verifique se as **dependências foram instaladas**
+- Execute o `build.bat` na raiz do repositório: será gerado o `GordOPK.asi` na mesma pasta
 - Copie o `GordOPK.asi` para a pasta raiz do jogo
 - Inicie o OpenKore e o jogo - as configurações do OpenKore é de **sua responsabilidade!**
 

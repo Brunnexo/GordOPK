@@ -1,0 +1,7 @@
+#define CRAG_CONNECTION_PTR     0x00BE8760
+#define CHECKSUM_FUN_ADDRESS    0x0051A2B0
+#define SEED_FUN_ADDRESS        0x0051A490
+#define DOMAIN_ADDRESS_PTR      0x011764B0
+#define T_ADDRESS_PTR           0x014EFBD8
+
+// Não se preocupe com zeros à esquerda: 0x000A == 0xA
